@@ -112,20 +112,36 @@ npm run dev
 
     zip.file(`${root}README.md`, readme);
 
-    // --- backend (FastAPI stub)
+    // --- backend (FastAPI toy implementation)
     zip.file(
       `${root}backend/requirements.txt`,
       `fastapi>=0.115.0,<1.0.0
 uvicorn[standard]>=0.30.0,<1.0.0
+pydantic>=2.8.0,<3.0.0
 `
     );
 
     zip.file(
       `${root}backend/main.py`,
-      `from fastapi import FastAPI
+      `import hashlib
+import math
+from typing import List
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(title="${title} API")
+
+# Allow local dev by default. (If you proxy through the frontend, CORS won't matter,
+# but this keeps direct calls convenient.)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class AnalyzeRequest(BaseModel):
     text: str
@@ -134,13 +150,72 @@ class AnalyzeRequest(BaseModel):
 def health():
     return {"ok": True}
 
+def tokenize(text: str) -> List[str]:
+    t = (text or "").strip()
+    if not t:
+        return []
+    return t.split()[:32]
+
+def embed(token: str, dim: int = 16) -> List[float]:
+    # Deterministic pseudo-embedding from token hash (toy).
+    h = hashlib.sha256(token.encode("utf-8")).digest()
+    v = []
+    for i in range(dim):
+        b = h[i % len(h)]
+        v.append((b / 255.0) * 2.0 - 1.0)
+    return v
+
+def dot(a: List[float], b: List[float]) -> float:
+    return sum(x * y for x, y in zip(a, b))
+
+def softmax(xs: List[float]) -> List[float]:
+    if not xs:
+        return []
+    m = max(xs)
+    exps = [math.exp(x - m) for x in xs]
+    s = sum(exps) or 1.0
+    return [e / s for e in exps]
+
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
-    # TODO: implement the core method from the paper here
+    """
+    Toy 'Attention Is All You Need' demo:
+    - Tokenize input
+    - Compute a single-head scaled dot-product attention matrix
+    - Return attention weights and a lightweight summary
+    """
+    tokens = tokenize(req.text)
+    if not tokens:
+        return {"error": "Provide a non-empty input text."}
+
+    dim = 16
+    scale = math.sqrt(dim)
+    E = [embed(t, dim) for t in tokens]
+    # Toy: use embeddings as Q,K,V
+    Q = E
+    K = E
+    V = E
+
+    attn = []
+    for i in range(len(tokens)):
+        scores = [dot(Q[i], K[j]) / scale for j in range(len(tokens))]
+        weights = softmax(scores)
+        attn.append(weights)
+
+    # "Output token importance": average attention received
+    received = [0.0 for _ in tokens]
+    for i in range(len(tokens)):
+        for j in range(len(tokens)):
+            received[j] += attn[i][j]
+    received = [r / len(tokens) for r in received]
+    top = sorted(list(zip(tokens, received)), key=lambda x: x[1], reverse=True)[:5]
+
     return {
-        "summary": "stub",
-        "inputs": ${JSON.stringify(body.understanding.inputs)},
-        "outputs": ${JSON.stringify(body.understanding.outputs)},
+        "summary": "Toy attention computed (single-head, one layer).",
+        "goal": ${JSON.stringify(body.understanding.problem)},
+        "tokens": tokens,
+        "attention": attn,
+        "top_tokens": [{"token": t, "score": s} for t, s in top],
     }
 
 if __name__ == "__main__":
@@ -158,7 +233,7 @@ if __name__ == "__main__":
           private: true,
           version: "0.1.0",
           scripts: { dev: "next dev", build: "next build", start: "next start" },
-          dependencies: { next: "^14.2.35", react: "^18.3.1", "react-dom": "^18.3.1" }
+          dependencies: { next: "latest", react: "^18.3.1", "react-dom": "^18.3.1" }
         },
         null,
         2
@@ -189,6 +264,30 @@ if __name__ == "__main__":
       )
     );
     zip.file(`${root}frontend/next-env.d.ts`, `/// <reference types="next" />\n`);
+
+    zip.file(
+      `${root}frontend/.env.local.example`,
+      `# Backend URL for local dev\nBACKEND_URL=http://127.0.0.1:8000\n`
+    );
+
+    zip.file(
+      `${root}frontend/app/api/analyze/route.ts`,
+      `export const runtime = "nodejs";
+
+export async function POST(req: Request) {
+  const backend = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+  const body = await req.text();
+  const res = await fetch(backend.replace(/\\/+$/, "") + "/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body
+  });
+  const text = await res.text();
+  return new Response(text, { status: res.status, headers: { "Content-Type": "application/json" } });
+}
+`
+    );
+
     zip.file(
       `${root}frontend/app/page.tsx`,
       `"use client";
@@ -199,17 +298,25 @@ export default function Page() {
   const [text, setText] = useState("");
   const [out, setOut] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const tokens: string[] = out?.tokens || [];
+  const attn: number[][] = out?.attention || [];
 
   async function run() {
     setBusy(true);
     setOut(null);
-    const res = await fetch("http://127.0.0.1:8000/analyze", {
+    const res = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text })
     });
     setOut(await res.json());
     setBusy(false);
+  }
+
+  function cellColor(v: number) {
+    // v ~ 0..1
+    const a = Math.max(0, Math.min(1, v));
+    return `rgba(59,130,246,${0.08 + a * 0.7})`;
   }
 
   return (
@@ -228,9 +335,58 @@ export default function Page() {
         </button>
       </div>
       {out ? (
-        <pre style={{ marginTop: 12, background: "#111", color: "#eee", padding: 12, overflow: "auto" }}>
-          {JSON.stringify(out, null, 2)}
-        </pre>
+        <div style={{ marginTop: 16 }}>
+          {"error" in out ? (
+            <div style={{ color: "crimson" }}>{String(out.error)}</div>
+          ) : (
+            <>
+              <div><b>Summary:</b> {out.summary}</div>
+              <div style={{ marginTop: 8 }}><b>Top tokens:</b> {(out.top_tokens || []).map((t:any) => `${t.token} (${(t.score || 0).toFixed(2)})`).join(", ")}</div>
+
+              {tokens.length && attn.length ? (
+                <div style={{ marginTop: 12, overflow: "auto", border: "1px solid #ddd", padding: 8 }}>
+                  <div style={{ fontSize: 12, marginBottom: 8 }}><b>Attention heatmap</b> (rows attend to columns)</div>
+                  <table style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: 4, fontSize: 12 }}></th>
+                        {tokens.map((t) => (
+                          <th key={t} style={{ padding: 4, fontSize: 12, border: "1px solid #eee" }}>{t}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokens.map((rowTok, i) => (
+                        <tr key={rowTok}>
+                          <td style={{ padding: 4, fontSize: 12, border: "1px solid #eee" }}><b>{rowTok}</b></td>
+                          {tokens.map((_, j) => (
+                            <td
+                              key={j}
+                              title={(attn[i]?.[j] ?? 0).toFixed(3)}
+                              style={{
+                                width: 22,
+                                height: 22,
+                                border: "1px solid #eee",
+                                background: cellColor(attn[i]?.[j] ?? 0)
+                              }}
+                            />
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              <details style={{ marginTop: 12 }}>
+                <summary>Raw JSON</summary>
+                <pre style={{ marginTop: 8, background: "#111", color: "#eee", padding: 12, overflow: "auto" }}>
+                  {JSON.stringify(out, null, 2)}
+                </pre>
+              </details>
+            </>
+          )}
+        </div>
       ) : null}
     </main>
   );
