@@ -8,6 +8,25 @@ Minimal, engaging UI + a real backend pipeline:
 - Evaluate: plan faithfulness (Oumi-style evaluation)
 - Output: paper understanding + MVP implementation plan + evaluation score
 
+## Features (what it does)
+
+- **Two input modes**: paste an arXiv URL (both `/abs` and `/pdf`) or upload a PDF.
+- **Real extraction**: parses the PDF and extracts usable text before any generation.
+- **Structured output (JSON)**:
+  - Paper understanding: problem, methodology, architecture, inputs/outputs
+  - Practical plan: recommended stack, endpoints, folder structure, dependencies, milestones
+- **Evaluation layer**: optional Oumi-style faithfulness scoring (coverage + missing/hallucinated components).
+- **Local-first**: runs for free using local inference (Ollama), with optional Oumi engines or OpenAI for faster demos.
+- **Scaffold download (bonus)**: generates a starter ZIP (frontend + backend stubs) from the plan.
+
+## Benefits (why it matters)
+
+- **Faster from research to build**: converts papers into actionable engineering steps in minutes.
+- **More trustworthy planning**: evaluation score makes it easier to spot missing pieces and reduce hallucinations.
+- **Demo-friendly + transparent**: outputs are visible as structured sections/JSON you can copy or reuse.
+- **Cost control**: limit extracted chars and optionally disable evaluation to keep runs fast/cheap.
+- **Extensible**: the plan schema and evaluation layer are designed to be expanded into full repo generation workflows.
+
 ## Quickstart
 
 From this folder:
