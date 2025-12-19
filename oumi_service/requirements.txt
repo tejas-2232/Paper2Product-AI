@@ -5,3 +5,6 @@ pydantic>=2.8.0,<3.0.0
 python-dotenv>=1.0.1,<2.0.0
 openai>=1.54.0,<2.0.0
 
+# Oumi (used for optional local inference engines + RL fine-tuning recipes)
+oumi==0.4.0
+
