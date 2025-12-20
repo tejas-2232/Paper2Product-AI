@@ -27,6 +27,28 @@ Minimal, engaging UI + a real backend pipeline:
 - **Cost control**: limit extracted chars and optionally disable evaluation to keep runs fast/cheap.
 - **Extensible**: the plan schema and evaluation layer are designed to be expanded into full repo generation workflows.
 
+## Oumi usage (for Oumi track judges)
+
+This repo uses **Oumi** in two ways:
+
+1) **Oumi-style generation + evaluation service** (local-first)
+- Python service: `hack01/oumi_service/main.py`
+- Supports **Oumi local inference engines** (set `OUMI_ENGINE`, `OUMI_MODEL_NAME`, `OUMI_GGUF_PATH`)
+- Runs an **evaluation pass** that scores plan faithfulness vs the paper excerpt (LLM-as-a-judge style)
+
+2) **Oumi Reinforcement Learning fine-tuning (RLFT)** via a DPO recipe
+- RLFT config: `hack01/oumi_rlft/dpo_recipe.yaml`
+- Run:
+  ```bash
+  pip install -r oumi_service/requirements.txt
+  oumi train -c hack01/oumi_rlft/dpo_recipe.yaml
+  ```
+
+Relevant links:
+- Oumi GitHub: `https://github.com/oumi-ai/oumi`
+- Oumi training methods (RLFT): `https://oumi.ai/docs/en/latest/user_guides/train/training_methods.html`
+- Oumi training configuration: `https://oumi.ai/docs/en/latest/user_guides/train/configuration.html`
+
 ## Quickstart
 
 From this folder:
@@ -86,4 +108,51 @@ Response:
 - This is a hack MVP: the “evaluation layer” is designed to be visible in the UI and extensible.
 - Next step (optional): add a “Generate scaffold zip/repo” button that creates a runnable starter based on `implementationPlan`.
 
+## Links (for judges)
 
+- **Repo**:
+- **Live demo**:
+- **Demo video**:
+- **Key code**:
+  - Next.js API route: `hack01/app/api/analyze/route.ts`
+  - Python service (generation + evaluation): `hack01/oumi_service/main.py`
+  - Deployment notes (Vercel + GCP option): `hack01/DEPLOY_GCP.md`
+
+## Sponsor tracks (optional)
+
+> Leave the sponsor fields empty if you are not applying to that track.
+
+### The Infinity Build Award – $5,000 (Cline CLI)
+
+- **Sponsor**:
+- **Applying**: No
+- **Relevant links**:
+- **How we used the tool (CLI automation)**:
+
+### The Wakanda Data Award – $4,000 (Kestra built-in AI Agent)
+
+- **Sponsor**:
+- **Applying**: No
+- **Relevant links**:
+- **How we used Kestra’s AI Agent (summaries + decisions)**:
+
+### The Iron Intelligence Award – $3,000 (Oumi + RL fine-tuning)
+
+- **Sponsor**:
+- **Applying**: No
+- **Relevant links**:
+- **How we used Oumi RL fine-tuning**:
+
+### The Stormbreaker Deployment Award – $2,000 (Vercel live deployment)
+
+- **Sponsor**:
+- **Applying**: No
+- **Relevant links**:
+- **How we deployed on Vercel**:
+
+### The Captain Code Award – $1,000 (CodeRabbit PR reviews)
+
+- **Sponsor**:
+- **Applying**: No
+- **Relevant links**:
+- **How we used CodeRabbit (PRs, docs, best practices)**:
