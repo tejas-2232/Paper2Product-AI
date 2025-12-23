@@ -8,6 +8,13 @@ Minimal, engaging UI + a real backend pipeline:
 - Evaluate: plan faithfulness (Oumi-style evaluation)
 - Output: paper understanding + MVP implementation plan + evaluation score
 
+## Screenshots
+
+<img width="1503" height="926" alt="shows first page of product, pipeline, generate plan button" src="https://github.com/user-attachments/assets/294ddcad-3d84-4d18-b490-a37c21a13b28" />
+
+<img width="604" height="984" alt="shows inputs, outputs, practical engineering plan, api endpoints, folder structure" src="https://github.com/user-attachments/assets/22741932-c903-460d-ad79-16897d284161" />
+
+
 ## Features (what it does)
 
 - **Two input modes**: paste an arXiv URL (both `/abs` and `/pdf`) or upload a PDF.
