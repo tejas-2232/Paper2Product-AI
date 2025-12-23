@@ -1,4 +1,4 @@
-# Paper2Product AI (hack01)
+# Paper2Product AI
 
 Minimal, engaging UI + a real backend pipeline:
 
@@ -136,42 +136,3 @@ The UI timeline is powered by:
   - Next.js API route: `hack01/app/api/analyze/route.ts`
   - Python service (generation + evaluation): `hack01/oumi_service/main.py`
   - Deployment notes (Vercel + GCP option): `hack01/DEPLOY_GCP.md`
-
-## Sponsor tracks (optional)
-
-> Leave the sponsor fields empty if you are not applying to that track.
-
-### The Infinity Build Award – $5,000 (Cline CLI)
-
-- **Sponsor**:
-- **Applying**: No
-- **Relevant links**:
-- **How we used the tool (CLI automation)**:
-
-### The Wakanda Data Award – $4,000 (Kestra built-in AI Agent)
-
-- **Sponsor**:
-- **Applying**: No
-- **Relevant links**:
-- **How we used Kestra’s AI Agent (summaries + decisions)**:
-
-### The Iron Intelligence Award – $3,000 (Oumi + RL fine-tuning)
-
-- **Sponsor**:
-- **Applying**: No
-- **Relevant links**:
-- **How we used Oumi RL fine-tuning**:
-
-### The Stormbreaker Deployment Award – $2,000 (Vercel live deployment)
-
-- **Sponsor**:
-- **Applying**: No
-- **Relevant links**:
-- **How we deployed on Vercel**:
-
-### The Captain Code Award – $1,000 (CodeRabbit PR reviews)
-
-- **Sponsor**:
-- **Applying**: No
-- **Relevant links**:
-- **How we used CodeRabbit (PRs, docs, best practices)**:
