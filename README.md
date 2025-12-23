@@ -18,6 +18,11 @@ Minimal, engaging UI + a real backend pipeline:
 - **Evaluation layer**: optional Oumi-style faithfulness scoring (coverage + missing/hallucinated components).
 - **Local-first**: runs for free using local inference (Ollama), with optional Oumi engines or OpenAI for faster demos.
 - **Scaffold download (bonus)**: generates a starter ZIP (frontend + backend stubs) from the plan.
+- **Storytelling UI**:
+  - Pipeline timeline (Download → Extract → Plan → Eval) with real timings
+  - Endpoint explorer drawer (click an endpoint to view details)
+  - Folder structure rendered as a collapsible tree
+  - “Debug: raw JSON” section for demo transparency
 
 ## Benefits (why it matters)
 
@@ -85,6 +90,7 @@ Put these into `hack01/.env.local`:
 - **MAX_EXTRACT_CHARS** (optional): extracted PDF chars passed downstream (default: `18000`)
 - **OPENAI_API_KEY** (optional): if set, Python service will use OpenAI (fast) instead of local Ollama
 - **OPENAI_MODEL** (optional): default `gpt-4o-mini`
+- **ENABLE_EVAL** (optional): set `0` to disable evaluation for faster demos
 - **OLLAMA_BASE_URL** (optional): use free local Ollama (default: `http://127.0.0.1:11434`)
 - **OLLAMA_MODEL** (optional): Ollama model name (default: `llama3.2:1b`)
 - **OUMI_ENGINE / OUMI_MODEL_NAME / OUMI_GGUF_PATH** (optional): if you want the Python service to use Oumi local inference engines
@@ -102,6 +108,12 @@ Response:
 ```json
 { "ok": true, "data": { "paper": {}, "understanding": {}, "implementationPlan": {}, "evaluation": {} } }
 ```
+
+### Timing metadata (for the UI timeline)
+
+The UI timeline is powered by:
+- Next.js API timings (download/extract/service/total) added in `/app/api/analyze/route.ts`
+- LLM timings (generate/eval + engine/model) added in `/oumi_service/main.py` under `meta`
 
 ## Notes
 
