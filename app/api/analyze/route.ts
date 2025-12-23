@@ -36,6 +36,15 @@ const LlmOutputSchema = z.object({
     .default({}),
   understanding: UnderstandingSchema,
   implementationPlan: ImplementationPlanSchema,
+  meta: z
+    .object({
+      engine: z.string().optional(),
+      model: z.string().optional(),
+      generate_ms: z.number().optional(),
+      eval_ms: z.number().optional(),
+      eval_enabled: z.boolean().optional()
+    })
+    .optional(),
   evaluation: z
     .object({
       coverage_score: z.number().min(0).max(1).optional(),
@@ -96,6 +105,7 @@ async function callOumiService(payload: unknown) {
 
 export async function POST(req: Request) {
   try {
+    const t0 = Date.now();
     const maxChars = Number(env("MAX_EXTRACT_CHARS", "18000"));
 
     const form = await req.formData();
@@ -106,6 +116,7 @@ export async function POST(req: Request) {
 
     let pdfBuffer: Buffer;
     let source: "arxiv" | "pdf_upload";
+    const tDownloadStart = Date.now();
 
     if (mode === "arxiv") {
       const arxivUrlInput = String(form.get("arxivUrl") || "");
@@ -121,18 +132,24 @@ export async function POST(req: Request) {
       pdfBuffer = Buffer.from(arr);
       source = "pdf_upload";
     }
+    const tDownloadEnd = Date.now();
 
+    const tExtractStart = Date.now();
     const fullText = await extractPdfText(pdfBuffer);
     const extractedText = fullText.slice(0, Math.max(1000, maxChars)).trim();
     if (!extractedText) throw new Error("Could not extract any text from the PDF.");
+    const tExtractEnd = Date.now();
 
+    const tServiceStart = Date.now();
     const parsed = await callOumiService({
       paper_text: extractedText,
       source
     });
+    const tServiceEnd = Date.now();
 
     const data = LlmOutputSchema.parse(parsed);
 
+    const t1 = Date.now();
     return Response.json({
       ok: true,
       data: {
@@ -140,7 +157,14 @@ export async function POST(req: Request) {
         understanding: data.understanding,
         implementationPlan: data.implementationPlan,
         evaluation: data.evaluation,
-        notes: data.notes
+        notes: data.notes,
+        meta: {
+          total_ms: t1 - t0,
+          download_ms: tDownloadEnd - tDownloadStart,
+          extract_ms: tExtractEnd - tExtractStart,
+          service_ms: tServiceEnd - tServiceStart,
+          service: data.meta
+        }
       }
     });
   } catch (e) {

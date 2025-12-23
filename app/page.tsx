@@ -34,6 +34,19 @@ type AnalyzeResult = {
     confidence?: string;
   };
   notes?: string[];
+  meta?: {
+    total_ms?: number;
+    download_ms?: number;
+    extract_ms?: number;
+    service_ms?: number;
+    service?: {
+      engine?: string;
+      model?: string;
+      generate_ms?: number;
+      eval_ms?: number;
+      eval_enabled?: boolean;
+    };
+  };
 };
 
 function CodeBlock({ value }: { value: string }) {
@@ -48,6 +61,59 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-muted">{children}</div>;
 }
 
+type Endpoint = { method: string; path: string; purpose: string };
+
+function ms(n?: number) {
+  if (typeof n !== "number" || Number.isNaN(n)) return "—";
+  if (n < 1000) return `${n}ms`;
+  return `${(n / 1000).toFixed(1)}s`;
+}
+
+type TreeNode = { children: Record<string, TreeNode> };
+function buildTree(paths: string[]): TreeNode {
+  const root: TreeNode = { children: {} };
+  for (const raw of paths) {
+    const p = raw.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!p) continue;
+    const parts = p.split("/").filter(Boolean);
+    let cur = root;
+    for (const part of parts) {
+      cur.children[part] ??= { children: {} };
+      cur = cur.children[part];
+    }
+  }
+  return root;
+}
+
+function TreeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
+  const entries = Object.entries(node.children).sort(([a], [b]) => a.localeCompare(b));
+  if (!entries.length) return <div className="text-sm text-muted">(empty)</div>;
+  return (
+    <div className="text-sm">
+      {entries.map(([name, child]) => {
+        const hasKids = Object.keys(child.children).length > 0;
+        return (
+          <details key={`${depth}-${name}`} open={depth < 1} className="group">
+            <summary className="cursor-pointer list-none rounded-lg px-2 py-1 hover:bg-white/5">
+              <span className="inline-flex items-center gap-2">
+                <span className="text-muted" style={{ width: 18 }}>
+                  {hasKids ? "▸" : "•"}
+                </span>
+                <span className="font-mono text-xs">{name}</span>
+              </span>
+            </summary>
+            {hasKids ? (
+              <div className="ml-6 border-l border-border pl-2">
+                <TreeView node={child} depth={depth + 1} />
+              </div>
+            ) : null}
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function HomePage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<"arxiv" | "pdf">("arxiv");
@@ -56,6 +122,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null);
 
   const canSubmit = useMemo(() => {
     if (busy) return false;
@@ -89,6 +156,7 @@ export default function HomePage() {
   }
 
   const json = useMemo(() => (result ? JSON.stringify(result, null, 2) : ""), [result]);
+  const tree = useMemo(() => buildTree(result?.implementationPlan.folderStructure || []), [result]);
 
   async function copy(text: string) {
     await navigator.clipboard.writeText(text);
@@ -287,6 +355,43 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
+                  <div className="rounded-xl border border-border bg-black/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">Pipeline</div>
+                      <div className="flex items-center gap-2">
+                        {result.meta?.service?.engine ? <Badge>{result.meta.service.engine}</Badge> : null}
+                        {result.meta?.service?.model ? <Badge>{result.meta.service.model}</Badge> : null}
+                        {typeof result.meta?.total_ms === "number" ? (
+                          <Badge tone="good">{ms(result.meta.total_ms)}</Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                        <SectionTitle>Download</SectionTitle>
+                        <div className="mt-1 text-sm">{ms(result.meta?.download_ms)}</div>
+                      </div>
+                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                        <SectionTitle>Extract</SectionTitle>
+                        <div className="mt-1 text-sm">{ms(result.meta?.extract_ms)}</div>
+                      </div>
+                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                        <SectionTitle>Plan</SectionTitle>
+                        <div className="mt-1 text-sm">{ms(result.meta?.service?.generate_ms)}</div>
+                      </div>
+                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                        <SectionTitle>Eval</SectionTitle>
+                        <div className="mt-1 text-sm">
+                          {result.meta?.service?.eval_enabled === false ? "off" : ms(result.meta?.service?.eval_ms)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-muted">
+                      Want faster runs? Set <span className="font-mono">ENABLE_EVAL=0</span> and{" "}
+                      <span className="font-mono">MAX_EXTRACT_CHARS=3000</span>.
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-border bg-black/30 p-4">
                       <div className="text-xs text-muted">Problem</div>
@@ -367,7 +472,13 @@ export default function HomePage() {
                         {result.implementationPlan.apiEndpoints.length ? (
                           <ul className="mt-2 grid gap-2 text-sm">
                             {result.implementationPlan.apiEndpoints.map((e) => (
-                              <li key={`${e.method}-${e.path}`} className="rounded-lg border border-border bg-black/20 px-3 py-2">
+                              <li
+                                key={`${e.method}-${e.path}`}
+                                className="rounded-lg border border-border bg-black/20 px-3 py-2 cursor-pointer hover:bg-white/5"
+                                onClick={() => setSelectedEndpoint(e)}
+                                role="button"
+                                tabIndex={0}
+                              >
                                 <div className="font-mono text-xs text-muted">
                                   {e.method.toUpperCase()} {e.path}
                                 </div>
@@ -383,7 +494,7 @@ export default function HomePage() {
                       <div className="rounded-xl border border-border bg-black/30 p-4">
                         <SectionTitle>Folder structure</SectionTitle>
                         <div className="mt-2">
-                          <CodeBlock value={(result.implementationPlan.folderStructure || []).join("\n") || "(empty)"} />
+                          <TreeView node={tree} />
                         </div>
                       </div>
                     </div>
@@ -408,6 +519,13 @@ export default function HomePage() {
                       </ul>
                     </div>
                   ) : null}
+
+                  <details className="rounded-xl border border-border bg-black/30 p-4">
+                    <summary className="cursor-pointer text-sm text-muted">Debug: raw JSON</summary>
+                    <div className="mt-3">
+                      <CodeBlock value={json} />
+                    </div>
+                  </details>
                 </div>
               )}
             </Card>
@@ -418,6 +536,32 @@ export default function HomePage() {
           </footer>
         </div>
       </div>
+
+      {selectedEndpoint ? (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setSelectedEndpoint(null)} />
+          <div className="absolute right-0 top-0 h-full w-full max-w-md border-l border-border bg-panel/95 backdrop-blur p-5 shadow-soft">
+            <div className="flex items-center justify-between">
+              <div className="font-medium">Endpoint</div>
+              <Button variant="ghost" onClick={() => setSelectedEndpoint(null)}>
+                Close
+              </Button>
+            </div>
+            <div className="mt-4 rounded-xl border border-border bg-black/30 p-4">
+              <div className="font-mono text-xs text-muted">
+                {selectedEndpoint.method.toUpperCase()} {selectedEndpoint.path}
+              </div>
+              <div className="mt-2 text-sm">{selectedEndpoint.purpose}</div>
+            </div>
+            <div className="mt-4">
+              <SectionTitle>Suggested payload</SectionTitle>
+              <div className="mt-2">
+                <CodeBlock value={JSON.stringify({ example: "TODO: add payload details" }, null, 2)} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -571,27 +572,84 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
     enable_eval = (_env("ENABLE_EVAL", "1") or "1").strip() not in ("0", "false", "no")
 
     if use_oumi:
+        t0 = time.perf_counter()
         plan = _ensure_plan_shape(_generate_with_oumi(paper_text), paper_text, "generate(oumi)")
+        t1 = time.perf_counter()
         if enable_eval:
+            t2 = time.perf_counter()
             evaluation = _evaluate_with_oumi(paper_text, plan)
+            t3 = time.perf_counter()
             plan["evaluation"] = evaluation
+            plan["meta"] = {
+                "engine": "oumi",
+                "generate_ms": int((t1 - t0) * 1000),
+                "eval_ms": int((t3 - t2) * 1000),
+                "eval_enabled": True,
+            }
+        else:
+            plan["meta"] = {
+                "engine": "oumi",
+                "generate_ms": int((t1 - t0) * 1000),
+                "eval_ms": 0,
+                "eval_enabled": False,
+            }
         return plan
 
     if use_openai:
+        t0 = time.perf_counter()
         plan = _ensure_plan_shape(_generate_with_openai(paper_text), paper_text, "generate(openai)")
+        t1 = time.perf_counter()
         if enable_eval:
+            t2 = time.perf_counter()
             evaluation = _evaluate_with_openai(paper_text, plan)
+            t3 = time.perf_counter()
             plan["evaluation"] = evaluation
+            plan["meta"] = {
+                "engine": "openai",
+                "model": _env("OPENAI_MODEL", "gpt-4o-mini"),
+                "generate_ms": int((t1 - t0) * 1000),
+                "eval_ms": int((t3 - t2) * 1000),
+                "eval_enabled": True,
+            }
+        else:
+            plan["meta"] = {
+                "engine": "openai",
+                "model": _env("OPENAI_MODEL", "gpt-4o-mini"),
+                "generate_ms": int((t1 - t0) * 1000),
+                "eval_ms": 0,
+                "eval_enabled": False,
+            }
         return plan
 
     if use_ollama:
+        t0 = time.perf_counter()
         plan = _ensure_plan_shape(_generate_with_ollama(paper_text), paper_text, "generate(ollama)")
+        t1 = time.perf_counter()
         if enable_eval:
+            t2 = time.perf_counter()
             evaluation = _evaluate_with_ollama(paper_text, plan)
+            t3 = time.perf_counter()
             plan["evaluation"] = evaluation
+            plan["meta"] = {
+                "engine": "ollama",
+                "model": _env("OLLAMA_MODEL", "llama3.2:1b"),
+                "generate_ms": int((t1 - t0) * 1000),
+                "eval_ms": int((t3 - t2) * 1000),
+                "eval_enabled": True,
+            }
+        else:
+            plan["meta"] = {
+                "engine": "ollama",
+                "model": _env("OLLAMA_MODEL", "llama3.2:1b"),
+                "generate_ms": int((t1 - t0) * 1000),
+                "eval_ms": 0,
+                "eval_enabled": False,
+            }
         return plan
 
-    return _heuristic_output(paper_text)
+    plan = _heuristic_output(paper_text)
+    plan["meta"] = {"engine": "heuristic", "generate_ms": 0, "eval_ms": 0, "eval_enabled": False}
+    return plan
 
 
 app = FastAPI(title="Paper2Product Oumi Service", version="0.1.0")

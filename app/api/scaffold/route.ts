@@ -316,7 +316,8 @@ export default function Page() {
   function cellColor(v: number) {
     // v ~ 0..1
     const a = Math.max(0, Math.min(1, v));
-    return `rgba(59,130,246,${0.08 + a * 0.7})`;
+    const alpha = 0.08 + a * 0.7;
+    return "rgba(59,130,246," + alpha + ")";
   }
 
   return (
@@ -341,7 +342,7 @@ export default function Page() {
           ) : (
             <>
               <div><b>Summary:</b> {out.summary}</div>
-              <div style={{ marginTop: 8 }}><b>Top tokens:</b> {(out.top_tokens || []).map((t:any) => `${t.token} (${(t.score || 0).toFixed(2)})`).join(", ")}</div>
+              <div style={{ marginTop: 8 }}><b>Top tokens:</b> {(out.top_tokens || []).map((t:any) => String(t.token) + " (" + (Number(t.score || 0)).toFixed(2) + ")").join(", ")}</div>
 
               {tokens.length && attn.length ? (
                 <div style={{ marginTop: 12, overflow: "auto", border: "1px solid #ddd", padding: 8 }}>
