@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "@/app/providers";
 
 export const metadata: Metadata = {
   title: "Paper2Product AI",
@@ -11,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <div className="noise fixed inset-0 opacity-50" />
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

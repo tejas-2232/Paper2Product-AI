@@ -89,4 +89,9 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   );
 }
 
+export function Skeleton(props: React.HTMLAttributes<HTMLDivElement>) {
+  const { className, ...rest } = props;
+  return <div className={cn("skeleton rounded-xl", className)} {...rest} />;
+}
+
 

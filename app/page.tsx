@@ -4,7 +4,8 @@
 import { useMemo, useRef, useState } from "react";
 import { ArrowRight, Copy, Download, FileText, Link2, Loader2, Wand2 } from "lucide-react";
 import JSZip from "jszip";
-import { Badge, Button, Card, Input, Label, cn } from "@/components/ui";
+import { Badge, Button, Card, Input, Label, Skeleton, cn } from "@/components/ui";
+import { useToast } from "@/components/toast";
 
 type AnalyzeResult = {
   paper: {
@@ -116,6 +117,7 @@ function TreeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 }
 
 export default function HomePage() {
+  const toast = useToast();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<"arxiv" | "pdf">("arxiv");
   const [arxivUrl, setArxivUrl] = useState("https://arxiv.org/abs/1706.03762");
@@ -157,8 +159,11 @@ export default function HomePage() {
       const body = (await res.json()) as { ok: boolean; error?: string; data?: AnalyzeResult };
       if (!res.ok || !body.ok || !body.data) throw new Error(body.error || "Failed to analyze.");
       setResult(body.data);
+      toast.push({ tone: "good", title: "Plan ready", message: "Generated understanding + engineering plan." });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      const msg = e instanceof Error ? e.message : "Something went wrong.";
+      setError(msg);
+      toast.push({ tone: "bad", title: "Failed", message: msg, durationMs: 4200 });
     } finally {
       setBusy(false);
     }
@@ -169,6 +174,7 @@ export default function HomePage() {
 
   async function copy(text: string) {
     await navigator.clipboard.writeText(text);
+    toast.push({ tone: "good", title: "Copied", message: "Copied to clipboard." });
   }
 
   async function buildScaffoldZip(): Promise<{ blob: Blob; zip: JSZip; files: string[] }> {
@@ -220,6 +226,7 @@ export default function HomePage() {
         null;
       setPreviewSelected(defaultFile);
       if (defaultFile) await ensurePreviewFile(defaultFile);
+      toast.push({ tone: "neutral", title: "Preview ready", message: "Browse files, then download the zip." });
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : "Failed to build scaffold preview.");
     } finally {
@@ -246,12 +253,16 @@ export default function HomePage() {
       // If preview already built the zip, reuse it.
       if (previewZipBlob) {
         downloadBlob(previewZipBlob, "paper2product-starter.zip");
+        toast.push({ tone: "good", title: "Downloaded", message: "Scaffold zip downloaded." });
         return;
       }
       const { blob } = await buildScaffoldZip();
       downloadBlob(blob, "paper2product-starter.zip");
+      toast.push({ tone: "good", title: "Downloaded", message: "Scaffold zip downloaded." });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to download scaffold.");
+      const msg = e instanceof Error ? e.message : "Failed to download scaffold.";
+      setError(msg);
+      toast.push({ tone: "bad", title: "Download failed", message: msg, durationMs: 4200 });
     } finally {
       setDownloading(false);
     }
@@ -408,14 +419,42 @@ export default function HomePage() {
               ) : null}
 
               {!result ? (
-                <div className="flex h-full min-h-[320px] flex-col justify-center gap-2 rounded-xl border border-border bg-black/30 px-5 py-10">
-                  <div className="text-sm text-text">Run an analysis to see structured output.</div>
-                  <div className="text-xs text-muted">
-                    You’ll get a summary + a practical engineering plan you can immediately scaffold.
+                busy ? (
+                  <div className="flex flex-col gap-4">
+                    <div className="rounded-xl border border-border bg-black/30 p-4 animate-fadeInUp">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">Pipeline</div>
+                        <Badge>Running…</Badge>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <Skeleton className="h-[54px]" />
+                        <Skeleton className="h-[54px]" />
+                        <Skeleton className="h-[54px]" />
+                        <Skeleton className="h-[54px]" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Skeleton className="h-[86px]" />
+                      <Skeleton className="h-[86px]" />
+                    </div>
+                    <Skeleton className="h-[110px]" />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Skeleton className="h-[86px]" />
+                      <Skeleton className="h-[86px]" />
+                    </div>
+                    <Skeleton className="h-[280px]" />
                   </div>
-                </div>
+                ) : (
+                  <div className="flex h-full min-h-[320px] flex-col justify-center gap-2 rounded-xl border border-border bg-black/30 px-5 py-10">
+                    <div className="text-sm text-text">Run an analysis to see structured output.</div>
+                    <div className="text-xs text-muted">
+                      You’ll get a summary + a practical engineering plan you can immediately scaffold.
+                    </div>
+                  </div>
+                )
               ) : (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 animate-fadeInUp">
                   <div className="rounded-xl border border-border bg-black/30 p-4">
                     <div className="flex items-center justify-between">
                       <div className="font-medium">Pipeline</div>
@@ -600,8 +639,8 @@ export default function HomePage() {
 
       {selectedEndpoint ? (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setSelectedEndpoint(null)} />
-          <div className="absolute right-0 top-0 h-full w-full max-w-md border-l border-border bg-panel/95 backdrop-blur p-5 shadow-soft">
+          <div className="absolute inset-0 bg-black/60 animate-fadeInUp" onClick={() => setSelectedEndpoint(null)} />
+          <div className="absolute right-0 top-0 h-full w-full max-w-md border-l border-border bg-panel/95 backdrop-blur p-5 shadow-soft animate-slideInRight">
             <div className="flex items-center justify-between">
               <div className="font-medium">Endpoint</div>
               <Button variant="ghost" onClick={() => setSelectedEndpoint(null)}>
@@ -627,14 +666,14 @@ export default function HomePage() {
       {previewOpen ? (
         <div className="fixed inset-0 z-50">
           <div
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-black/60 animate-fadeInUp"
             onClick={() => {
               setPreviewOpen(false);
               setPreviewError(null);
             }}
           />
           <div className="absolute left-1/2 top-1/2 w-[min(1100px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2">
-            <Card className="p-0 overflow-hidden">
+            <Card className="p-0 overflow-hidden animate-scaleIn">
               <div className="flex items-center justify-between border-b border-border px-5 py-4">
                 <div className="flex items-center gap-2">
                   <div className="font-medium">Scaffold preview</div>
