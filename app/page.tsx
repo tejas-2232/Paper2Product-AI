@@ -3,6 +3,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ArrowRight, Copy, Download, FileText, Link2, Loader2, Wand2 } from "lucide-react";
+import JSZip from "jszip";
 import { Badge, Button, Card, Input, Label, cn } from "@/components/ui";
 
 type AnalyzeResult = {
@@ -123,6 +124,14 @@ export default function HomePage() {
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewFiles, setPreviewFiles] = useState<string[]>([]);
+  const [previewSelected, setPreviewSelected] = useState<string | null>(null);
+  const [previewContent, setPreviewContent] = useState<Record<string, string>>({});
+  const [previewZipBlob, setPreviewZipBlob] = useState<Blob | null>(null);
+  const previewZipRef = useRef<JSZip | null>(null);
 
   const canSubmit = useMemo(() => {
     if (busy) return false;
@@ -162,33 +171,85 @@ export default function HomePage() {
     await navigator.clipboard.writeText(text);
   }
 
+  async function buildScaffoldZip(): Promise<{ blob: Blob; zip: JSZip; files: string[] }> {
+    if (!result) throw new Error("No result to scaffold.");
+    const res = await fetch("/api/scaffold", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        paper: { title: result.paper.title },
+        understanding: result.understanding,
+        implementationPlan: result.implementationPlan
+      })
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(t || "Failed to generate scaffold.");
+    }
+    const blob = await res.blob();
+    const buf = await blob.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const files = Object.keys(zip.files).filter((p) => !zip.files[p]?.dir);
+    return { blob, zip, files };
+  }
+
+  async function ensurePreviewFile(path: string) {
+    if (previewContent[path]) return;
+    const zip = previewZipRef.current;
+    if (!zip) return;
+    const file = zip.file(path);
+    if (!file) return;
+    const text = await file.async("string");
+    setPreviewContent((m) => ({ ...m, [path]: text }));
+  }
+
+  async function openPreview() {
+    if (!result) return;
+    setPreviewOpen(true);
+    setPreviewBusy(true);
+    setPreviewError(null);
+    try {
+      const { blob, zip, files } = await buildScaffoldZip();
+      previewZipRef.current = zip;
+      setPreviewZipBlob(blob);
+      setPreviewFiles(files);
+      const defaultFile =
+        files.find((f) => f.endsWith("/README.md")) ||
+        files.find((f) => f.toLowerCase().includes("readme")) ||
+        files[0] ||
+        null;
+      setPreviewSelected(defaultFile);
+      if (defaultFile) await ensurePreviewFile(defaultFile);
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : "Failed to build scaffold preview.");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function downloadScaffold() {
     if (!result) return;
     setDownloading(true);
     setError(null);
     try {
-      const res = await fetch("/api/scaffold", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paper: { title: result.paper.title },
-          understanding: result.understanding,
-          implementationPlan: result.implementationPlan
-        })
-      });
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(t || "Failed to generate scaffold.");
+      // If preview already built the zip, reuse it.
+      if (previewZipBlob) {
+        downloadBlob(previewZipBlob, "paper2product-starter.zip");
+        return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "paper2product-starter.zip";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const { blob } = await buildScaffoldZip();
+      downloadBlob(blob, "paper2product-starter.zip");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to download scaffold.");
     } finally {
@@ -291,9 +352,9 @@ export default function HomePage() {
                     </>
                   )}
                 </Button>
-                <Button variant="ghost" type="button" disabled={!result || downloading} onClick={downloadScaffold}>
+                <Button variant="ghost" type="button" disabled={!result || downloading} onClick={openPreview}>
                   <Download className="h-4 w-4" />
-                  {downloading ? "Building…" : "Download scaffold"}
+                  {downloading ? "Building…" : "Preview scaffold"}
                 </Button>
                 <Button
                   variant="ghost"
@@ -559,6 +620,101 @@ export default function HomePage() {
                 <CodeBlock value={JSON.stringify({ example: "TODO: add payload details" }, null, 2)} />
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {previewOpen ? (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              setPreviewOpen(false);
+              setPreviewError(null);
+            }}
+          />
+          <div className="absolute left-1/2 top-1/2 w-[min(1100px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2">
+            <Card className="p-0 overflow-hidden">
+              <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <div className="font-medium">Scaffold preview</div>
+                  {previewBusy ? <Badge>Building…</Badge> : null}
+                  {previewFiles.length ? <Badge>{previewFiles.length} files</Badge> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" disabled={!previewZipBlob || downloading} onClick={downloadScaffold}>
+                    <Download className="h-4 w-4" />
+                    Download .zip
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setPreviewOpen(false);
+                      setPreviewError(null);
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-[320px_1fr]">
+                <div className="border-r border-border bg-black/20 p-3 max-h-[70vh] overflow-auto">
+                  {previewError ? (
+                    <div className="rounded-xl border border-bad/30 bg-bad/10 px-3 py-2 text-sm text-bad">
+                      {previewError}
+                    </div>
+                  ) : null}
+
+                  {previewBusy ? (
+                    <div className="p-3 text-sm text-muted">Building scaffold preview…</div>
+                  ) : previewFiles.length ? (
+                    <div className="grid gap-1">
+                      {previewFiles.map((p) => (
+                        <button
+                          key={p}
+                          className={cn(
+                            "w-full rounded-lg px-3 py-2 text-left text-xs font-mono transition",
+                            "border border-transparent hover:bg-white/5",
+                            previewSelected === p && "bg-white/5 border-border"
+                          )}
+                          onClick={async () => {
+                            setPreviewSelected(p);
+                            await ensurePreviewFile(p);
+                          }}
+                          type="button"
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-sm text-muted">No files yet.</div>
+                  )}
+                </div>
+
+                <div className="p-5 max-h-[70vh] overflow-auto">
+                  {!previewSelected ? (
+                    <div className="text-sm text-muted">Select a file to preview.</div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-mono text-muted">{previewSelected}</div>
+                        <Button
+                          variant="ghost"
+                          disabled={!previewContent[previewSelected]}
+                          onClick={() => copy(previewContent[previewSelected] || "")}
+                        >
+                          <Copy className="h-4 w-4" />
+                          Copy
+                        </Button>
+                      </div>
+                      <CodeBlock value={previewContent[previewSelected] || "Loading…"} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
           </div>
         </div>
       ) : null}
