@@ -121,6 +121,8 @@ export default function HomePage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<"arxiv" | "pdf">("arxiv");
   const [arxivUrl, setArxivUrl] = useState("https://arxiv.org/abs/1706.03762");
+  const [presetKey, setPresetKey] = useState<string>("transformer");
+  const [profile, setProfile] = useState<"fast" | "quality">("fast");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -141,6 +143,26 @@ export default function HomePage() {
     return Boolean(fileRef.current?.files?.[0]);
   }, [mode, arxivUrl, busy]);
 
+  const presets = useMemo(
+    () =>
+      [
+        {
+          key: "transformer",
+          label: "Transformer (Attention Is All You Need)",
+          url: "https://arxiv.org/abs/1706.03762"
+        },
+        { key: "bert", label: "BERT", url: "https://arxiv.org/abs/1810.04805" },
+        { key: "clip", label: "CLIP", url: "https://arxiv.org/abs/2103.00020" },
+        { key: "stable_diffusion", label: "Stable Diffusion", url: "https://arxiv.org/abs/2112.10752" }
+      ] as const,
+    []
+  );
+
+  const profileConfig = useMemo(() => {
+    if (profile === "fast") return { maxChars: 3000, enableEval: false, label: "Fast" as const };
+    return { maxChars: 9000, enableEval: true, label: "Quality" as const };
+  }, [profile]);
+
   async function onAnalyze() {
     setBusy(true);
     setError(null);
@@ -154,6 +176,8 @@ export default function HomePage() {
         if (!file) throw new Error("Please select a PDF first.");
         fd.set("pdf", file);
       }
+      fd.set("maxChars", String(profileConfig.maxChars));
+      fd.set("enableEval", profileConfig.enableEval ? "1" : "0");
 
       const res = await fetch("/api/analyze", { method: "POST", body: fd });
       const body = (await res.json()) as { ok: boolean; error?: string; data?: AnalyzeResult };
@@ -330,6 +354,73 @@ export default function HomePage() {
                     onChange={(e) => setArxivUrl(e.target.value)}
                     placeholder="https://arxiv.org/abs/..."
                   />
+                  <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <Label>Preset</Label>
+                      <select
+                        className="w-full rounded-xl border border-border bg-black/30 px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-accent/40"
+                        value={presetKey}
+                        onChange={(e) => {
+                          const key = e.target.value;
+                          setPresetKey(key);
+                          const p = presets.find((x) => x.key === key);
+                          if (p) {
+                            setArxivUrl(p.url);
+                            toast.push({ tone: "neutral", title: "Preset", message: `Loaded: ${p.label}` });
+                          }
+                        }}
+                      >
+                        {presets.map((p) => (
+                          <option key={p.key} value={p.key}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label>Mode</Label>
+                      <div className="flex rounded-xl border border-border bg-black/20 p-1">
+                        <button
+                          className={cn(
+                            "flex-1 rounded-lg px-3 py-2 text-xs transition",
+                            profile === "fast" ? "bg-white/10 text-text" : "text-muted hover:text-text"
+                          )}
+                          onClick={() => {
+                            setProfile("fast");
+                            toast.push({ tone: "neutral", title: "Demo mode", message: "Fast profile enabled." });
+                          }}
+                          type="button"
+                        >
+                          Fast
+                        </button>
+                        <button
+                          className={cn(
+                            "flex-1 rounded-lg px-3 py-2 text-xs transition",
+                            profile === "quality" ? "bg-white/10 text-text" : "text-muted hover:text-text"
+                          )}
+                          onClick={() => {
+                            setProfile("quality");
+                            toast.push({ tone: "neutral", title: "Demo mode", message: "Quality profile enabled." });
+                          }}
+                          type="button"
+                        >
+                          Quality
+                        </button>
+                      </div>
+                      <div className="text-xs text-muted">
+                        {profile === "fast" ? (
+                          <>
+                            Quick demo: <span className="font-mono">{profileConfig.maxChars}</span> chars, eval off
+                          </>
+                        ) : (
+                          <>
+                            Better depth: <span className="font-mono">{profileConfig.maxChars}</span> chars, eval on
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <p className="text-xs text-muted">
                     Tip: both <span className="font-mono">/abs/</span> and{" "}
                     <span className="font-mono">/pdf/</span> links work.
