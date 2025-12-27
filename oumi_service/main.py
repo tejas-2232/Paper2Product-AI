@@ -40,11 +40,24 @@ except Exception:
 class AnalyzeRequest(BaseModel):
     paper_text: str = Field(..., min_length=1)
     source: str = Field(..., description="arxiv | pdf_upload")
+    # Optional per-request overrides (used for presets/demo-mode)
+    max_extract_chars: Optional[int] = Field(default=None, ge=500, le=30000)
+    enable_eval: Optional[bool] = Field(default=None)
 
 
 def _env(name: str, default: Optional[str] = None) -> Optional[str]:
     v = os.getenv(name)
     return v if v is not None else default
+
+
+def _effective_max_chars(override: Optional[int], fallback_default: int) -> int:
+    if isinstance(override, int) and 500 <= override <= 30000:
+        return override
+    try:
+        v = int(_env("MAX_EXTRACT_CHARS", str(fallback_default)) or str(fallback_default))
+        return max(500, min(30000, v))
+    except Exception:
+        return fallback_default
 
 
 def _abstract_chunk(text: str, max_len: int = 2000) -> str:
@@ -320,8 +333,8 @@ def _oumi_infer_text(system: str, user: str) -> str:
     return str(result[0].messages[-1].content)
 
 
-def _generate_with_oumi(paper_text: str) -> Dict[str, Any]:
-    excerpt = paper_text[: int(_env("MAX_EXTRACT_CHARS", "18000"))]
+def _generate_with_oumi(paper_text: str, max_chars: Optional[int] = None) -> Dict[str, Any]:
+    excerpt = paper_text[: _effective_max_chars(max_chars, 18000)]
     schema = """{
   "paper": { "title": string? },
   "understanding": {
@@ -353,8 +366,8 @@ def _generate_with_oumi(paper_text: str) -> Dict[str, Any]:
         return json.loads(candidate)
 
 
-def _evaluate_with_oumi(paper_text: str, plan_json: Dict[str, Any]) -> Dict[str, Any]:
-    excerpt = paper_text[: int(_env("MAX_EXTRACT_CHARS", "18000"))]
+def _evaluate_with_oumi(paper_text: str, plan_json: Dict[str, Any], max_chars: Optional[int] = None) -> Dict[str, Any]:
+    excerpt = paper_text[: _effective_max_chars(max_chars, 18000)]
     eval_schema = """{
   "coverage_score": number,              // 0..1
   "covered_components": string[],
@@ -377,10 +390,10 @@ def _evaluate_with_oumi(paper_text: str, plan_json: Dict[str, Any]) -> Dict[str,
         return json.loads(candidate)
 
 
-def _generate_with_ollama(paper_text: str) -> Dict[str, Any]:
+def _generate_with_ollama(paper_text: str, max_chars: Optional[int] = None) -> Dict[str, Any]:
     # CPU-friendly default
     model = _env("OLLAMA_MODEL", "llama3.2:1b")
-    excerpt = paper_text[: int(_env("MAX_EXTRACT_CHARS", "8000"))]
+    excerpt = paper_text[: _effective_max_chars(max_chars, 8000)]
 
     schema = """{
   "paper": { "title": string? },
@@ -431,10 +444,10 @@ def _generate_with_ollama(paper_text: str) -> Dict[str, Any]:
         return _ensure_plan_shape(_parse_model_json(raw2), paper_text, "generate(retry)")
 
 
-def _evaluate_with_ollama(paper_text: str, plan_json: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_with_ollama(paper_text: str, plan_json: Dict[str, Any], max_chars: Optional[int] = None) -> Dict[str, Any]:
     # CPU-friendly default
     model = _env("OLLAMA_MODEL", "llama3.2:1b")
-    excerpt = paper_text[: int(_env("MAX_EXTRACT_CHARS", "8000"))]
+    excerpt = paper_text[: _effective_max_chars(max_chars, 8000)]
 
     eval_schema = """{
   "coverage_score": number,              // 0..1
@@ -493,8 +506,8 @@ def _openai_chat_json(messages: List[Dict[str, str]]) -> str:
     return content
 
 
-def _generate_with_openai(paper_text: str) -> Dict[str, Any]:
-    excerpt = paper_text[: int(_env("MAX_EXTRACT_CHARS", "8000"))]
+def _generate_with_openai(paper_text: str, max_chars: Optional[int] = None) -> Dict[str, Any]:
+    excerpt = paper_text[: _effective_max_chars(max_chars, 8000)]
 
     schema = """{
   "paper": { "title": string? },
@@ -530,8 +543,8 @@ def _generate_with_openai(paper_text: str) -> Dict[str, Any]:
     return _ensure_plan_shape(_parse_model_json(raw), paper_text, "generate(openai)")
 
 
-def _evaluate_with_openai(paper_text: str, plan_json: Dict[str, Any]) -> Dict[str, Any]:
-    excerpt = paper_text[: int(_env("MAX_EXTRACT_CHARS", "8000"))]
+def _evaluate_with_openai(paper_text: str, plan_json: Dict[str, Any], max_chars: Optional[int] = None) -> Dict[str, Any]:
+    excerpt = paper_text[: _effective_max_chars(max_chars, 8000)]
     eval_schema = """{
   "coverage_score": number,              // 0..1
   "covered_components": string[],
@@ -556,7 +569,7 @@ def _evaluate_with_openai(paper_text: str, plan_json: Dict[str, Any]) -> Dict[st
     return _parse_model_json(raw)
 
 
-def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
+def generate_and_evaluate(paper_text: str, *, max_chars: Optional[int] = None, enable_eval_override: Optional[bool] = None) -> Dict[str, Any]:
     """
     Oumi note:
     - Oumi is best thought of as the orchestration layer for running inference engines
@@ -569,15 +582,16 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
     use_oumi = bool(oumi_engine)
     use_openai = bool(_env("OPENAI_API_KEY"))
     use_ollama = bool(_env("OLLAMA_BASE_URL")) or bool(_env("OLLAMA_MODEL"))
-    enable_eval = (_env("ENABLE_EVAL", "1") or "1").strip() not in ("0", "false", "no")
+    enable_eval_env = (_env("ENABLE_EVAL", "1") or "1").strip() not in ("0", "false", "no")
+    enable_eval = enable_eval_env if enable_eval_override is None else bool(enable_eval_override)
 
     if use_oumi:
         t0 = time.perf_counter()
-        plan = _ensure_plan_shape(_generate_with_oumi(paper_text), paper_text, "generate(oumi)")
+        plan = _ensure_plan_shape(_generate_with_oumi(paper_text, max_chars=max_chars), paper_text, "generate(oumi)")
         t1 = time.perf_counter()
         if enable_eval:
             t2 = time.perf_counter()
-            evaluation = _evaluate_with_oumi(paper_text, plan)
+            evaluation = _evaluate_with_oumi(paper_text, plan, max_chars=max_chars)
             t3 = time.perf_counter()
             plan["evaluation"] = evaluation
             plan["meta"] = {
@@ -585,6 +599,7 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
                 "generate_ms": int((t1 - t0) * 1000),
                 "eval_ms": int((t3 - t2) * 1000),
                 "eval_enabled": True,
+                "max_extract_chars": _effective_max_chars(max_chars, 18000),
             }
         else:
             plan["meta"] = {
@@ -592,16 +607,17 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
                 "generate_ms": int((t1 - t0) * 1000),
                 "eval_ms": 0,
                 "eval_enabled": False,
+                "max_extract_chars": _effective_max_chars(max_chars, 18000),
             }
         return plan
 
     if use_openai:
         t0 = time.perf_counter()
-        plan = _ensure_plan_shape(_generate_with_openai(paper_text), paper_text, "generate(openai)")
+        plan = _ensure_plan_shape(_generate_with_openai(paper_text, max_chars=max_chars), paper_text, "generate(openai)")
         t1 = time.perf_counter()
         if enable_eval:
             t2 = time.perf_counter()
-            evaluation = _evaluate_with_openai(paper_text, plan)
+            evaluation = _evaluate_with_openai(paper_text, plan, max_chars=max_chars)
             t3 = time.perf_counter()
             plan["evaluation"] = evaluation
             plan["meta"] = {
@@ -610,6 +626,7 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
                 "generate_ms": int((t1 - t0) * 1000),
                 "eval_ms": int((t3 - t2) * 1000),
                 "eval_enabled": True,
+                "max_extract_chars": _effective_max_chars(max_chars, 8000),
             }
         else:
             plan["meta"] = {
@@ -618,16 +635,17 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
                 "generate_ms": int((t1 - t0) * 1000),
                 "eval_ms": 0,
                 "eval_enabled": False,
+                "max_extract_chars": _effective_max_chars(max_chars, 8000),
             }
         return plan
 
     if use_ollama:
         t0 = time.perf_counter()
-        plan = _ensure_plan_shape(_generate_with_ollama(paper_text), paper_text, "generate(ollama)")
+        plan = _ensure_plan_shape(_generate_with_ollama(paper_text, max_chars=max_chars), paper_text, "generate(ollama)")
         t1 = time.perf_counter()
         if enable_eval:
             t2 = time.perf_counter()
-            evaluation = _evaluate_with_ollama(paper_text, plan)
+            evaluation = _evaluate_with_ollama(paper_text, plan, max_chars=max_chars)
             t3 = time.perf_counter()
             plan["evaluation"] = evaluation
             plan["meta"] = {
@@ -636,6 +654,7 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
                 "generate_ms": int((t1 - t0) * 1000),
                 "eval_ms": int((t3 - t2) * 1000),
                 "eval_enabled": True,
+                "max_extract_chars": _effective_max_chars(max_chars, 8000),
             }
         else:
             plan["meta"] = {
@@ -644,11 +663,18 @@ def generate_and_evaluate(paper_text: str) -> Dict[str, Any]:
                 "generate_ms": int((t1 - t0) * 1000),
                 "eval_ms": 0,
                 "eval_enabled": False,
+                "max_extract_chars": _effective_max_chars(max_chars, 8000),
             }
         return plan
 
     plan = _heuristic_output(paper_text)
-    plan["meta"] = {"engine": "heuristic", "generate_ms": 0, "eval_ms": 0, "eval_enabled": False}
+    plan["meta"] = {
+        "engine": "heuristic",
+        "generate_ms": 0,
+        "eval_ms": 0,
+        "eval_enabled": False,
+        "max_extract_chars": _effective_max_chars(max_chars, 1500),
+    }
     return plan
 
 
@@ -662,7 +688,11 @@ def analyze(req: AnalyzeRequest, x_oumi_token: Optional[str] = Header(default=No
         if not x_oumi_token or x_oumi_token != expected:
             raise HTTPException(status_code=401, detail="Unauthorized")
     try:
-        return generate_and_evaluate(req.paper_text)
+        return generate_and_evaluate(
+            req.paper_text,
+            max_chars=req.max_extract_chars,
+            enable_eval_override=req.enable_eval,
+        )
     except Exception as e:
         # Demo-first behavior:
         # Always return a plan-shaped JSON so the UI doesn't break, but surface the failure.
