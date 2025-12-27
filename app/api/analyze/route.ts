@@ -106,13 +106,23 @@ async function callOumiService(payload: unknown) {
 export async function POST(req: Request) {
   try {
     const t0 = Date.now();
-    const maxChars = Number(env("MAX_EXTRACT_CHARS", "18000"));
+    const envMaxChars = Number(env("MAX_EXTRACT_CHARS", "18000"));
 
     const form = await req.formData();
     const mode = String(form.get("mode") || "");
     if (mode !== "arxiv" && mode !== "pdf") {
       return Response.json({ ok: false, error: "Invalid mode." }, { status: 400 });
     }
+
+    const maxCharsOverrideRaw = String(form.get("maxChars") || "").trim();
+    const enableEvalRaw = String(form.get("enableEval") || "").trim();
+    const maxCharsOverride = maxCharsOverrideRaw ? Number(maxCharsOverrideRaw) : NaN;
+    const effectiveMaxChars =
+      Number.isFinite(maxCharsOverride) && maxCharsOverride >= 500 && maxCharsOverride <= 30000
+        ? maxCharsOverride
+        : envMaxChars;
+    const enableEvalOverride =
+      enableEvalRaw === "" ? undefined : !(enableEvalRaw === "0" || enableEvalRaw.toLowerCase() === "false");
 
     let pdfBuffer: Buffer;
     let source: "arxiv" | "pdf_upload";
@@ -136,14 +146,16 @@ export async function POST(req: Request) {
 
     const tExtractStart = Date.now();
     const fullText = await extractPdfText(pdfBuffer);
-    const extractedText = fullText.slice(0, Math.max(1000, maxChars)).trim();
+    const extractedText = fullText.slice(0, Math.max(1000, effectiveMaxChars)).trim();
     if (!extractedText) throw new Error("Could not extract any text from the PDF.");
     const tExtractEnd = Date.now();
 
     const tServiceStart = Date.now();
     const parsed = await callOumiService({
       paper_text: extractedText,
-      source
+      source,
+      max_extract_chars: effectiveMaxChars,
+      enable_eval: enableEvalOverride
     });
     const tServiceEnd = Date.now();
 
