@@ -296,9 +296,11 @@ export default function HomePage() {
     <main className="min-h-screen">
       <div className="mx-auto max-w-6xl px-5 py-10">
         <div className="flex flex-col gap-6">
-          <header className="flex flex-col gap-3">
+          <header className="flex flex-col gap-3 glow-ring">
             <div className="flex items-center gap-2">
-              <Badge className="border-accent/30 bg-accent/10 text-accent">Paper2Product AI</Badge>
+              <Badge className="border-white/10 bg-gradient-to-r from-accent/20 via-accent2/15 to-accent3/15 text-text">
+                Paper2Product AI
+              </Badge>
               <Badge>Research → Runnable MVP</Badge>
             </div>
             <h1 className="text-3xl font-semibold tracking-tight">
