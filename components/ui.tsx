@@ -76,8 +76,8 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       className={cn(
-        "w-full rounded-xl border border-white/10 px-3 py-2 text-sm text-text",
-        "bg-gradient-to-b from-white/6 to-black/35",
+        "w-full rounded-xl border border-white/10 px-3 py-2 text-sm text-text appearance-none",
+        "bg-black/30 bg-gradient-to-b from-white/[0.06] to-black/[0.35]",
         "placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent/40",
         className
       )}
@@ -91,8 +91,8 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return (
     <textarea
       className={cn(
-        "w-full rounded-xl border border-white/10 px-3 py-2 text-sm text-text",
-        "bg-gradient-to-b from-white/6 to-black/35",
+        "w-full rounded-xl border border-white/10 px-3 py-2 text-sm text-text appearance-none",
+        "bg-black/30 bg-gradient-to-b from-white/[0.06] to-black/[0.35]",
         "placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent/40",
         className
       )}
