@@ -10,9 +10,10 @@ export default {
         border: "hsl(0 0% 14%)",
         text: "hsl(0 0% 92%)",
         muted: "hsl(0 0% 70%)",
-        accent: "hsl(221 83% 60%)",
-        accent2: "hsl(268 83% 65%)",
-        accent3: "hsl(190 90% 55%)",
+        /* Robinhood-ish: green + teal + soft cyan */
+        accent: "hsl(156 72% 45%)",
+        accent2: "hsl(190 90% 55%)",
+        accent3: "hsl(142 71% 45%)",
         good: "hsl(142 71% 45%)",
         bad: "hsl(0 84% 60%)"
       },

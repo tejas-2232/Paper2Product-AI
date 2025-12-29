@@ -294,19 +294,19 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen">
-      <div className="mx-auto max-w-6xl px-5 py-10">
-        <div className="flex flex-col gap-6">
+      <div className="mx-auto max-w-6xl px-5 py-12 md:py-14">
+        <div className="flex flex-col gap-8 md:gap-10">
           <header className="flex flex-col gap-3 glow-ring">
             <div className="flex items-center gap-2">
-              <Badge className="border-white/10 bg-gradient-to-r from-accent/20 via-accent2/15 to-accent3/15 text-text">
+              <Badge className="border-white/10 bg-gradient-to-r from-accent/25 via-accent2/15 to-accent3/20 text-text">
                 Paper2Product AI
               </Badge>
               <Badge>Research → Runnable MVP</Badge>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight">
+            <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
               Turn an arXiv paper into an implementation plan in minutes.
             </h1>
-            <p className="text-muted max-w-2xl">
+            <p className="text-muted max-w-2xl text-base leading-relaxed md:text-lg">
               Paste an arXiv link (or upload a PDF). We extract the methodology and generate a clean
               MVP scaffold: stack choices, endpoints, folder structure, and milestones.
             </p>
@@ -444,7 +444,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              <div className="flex items-center gap-3 pt-1">
+              <div className="flex items-center gap-3 pt-2">
                 <Button onClick={onAnalyze} disabled={!canSubmit}>
                   {busy ? (
                     <>
@@ -478,7 +478,7 @@ export default function HomePage() {
                 </div>
               ) : null}
 
-              <div className="rounded-xl border border-border bg-black/25 px-3 py-2 text-xs text-muted">
+              <div className="rounded-xl border border-border bg-black/25 px-3 py-2 text-xs leading-relaxed text-muted">
                 Run the local Python service (see <span className="font-mono">hack01/README.md</span>) and configure{" "}
                 <span className="font-mono">OUMI_SERVICE_URL</span> in{" "}
                 <span className="font-mono">hack01/.env.local</span>. For a free local model, set{" "}
@@ -560,19 +560,19 @@ export default function HomePage() {
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                      <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-3">
                         <SectionTitle>Download</SectionTitle>
                         <div className="mt-1 text-sm">{ms(result.meta?.download_ms)}</div>
                       </div>
-                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                      <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-3">
                         <SectionTitle>Extract</SectionTitle>
                         <div className="mt-1 text-sm">{ms(result.meta?.extract_ms)}</div>
                       </div>
-                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                      <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-3">
                         <SectionTitle>Plan</SectionTitle>
                         <div className="mt-1 text-sm">{ms(result.meta?.service?.generate_ms)}</div>
                       </div>
-                      <div className="rounded-xl border border-border bg-black/20 p-3">
+                      <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-3">
                         <SectionTitle>Eval</SectionTitle>
                         <div className="mt-1 text-sm">
                           {result.meta?.service?.eval_enabled === false ? "off" : ms(result.meta?.service?.eval_ms)}
@@ -586,17 +586,17 @@ export default function HomePage() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-border bg-black/30 p-4">
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-4">
                       <div className="text-xs text-muted">Problem</div>
                       <div className="mt-1 text-sm">{result.understanding.problem}</div>
                     </div>
-                    <div className="rounded-xl border border-border bg-black/30 p-4">
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-4">
                       <div className="text-xs text-muted">Methodology</div>
                       <div className="mt-1 text-sm">{result.understanding.methodology}</div>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-border bg-black/30 p-4">
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-4">
                     <SectionTitle>Architecture</SectionTitle>
                     <ul className="mt-2 grid list-disc gap-1 pl-5 text-sm">
                       {result.understanding.architecture.map((a) => (
@@ -606,11 +606,11 @@ export default function HomePage() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-border bg-black/30 p-4">
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-4">
                       <div className="text-xs text-muted">Inputs</div>
                       <div className="mt-1 text-sm">{result.understanding.inputs}</div>
                     </div>
-                    <div className="rounded-xl border border-border bg-black/30 p-4">
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-4">
                       <div className="text-xs text-muted">Outputs</div>
                       <div className="mt-1 text-sm">{result.understanding.outputs}</div>
                     </div>
@@ -660,14 +660,14 @@ export default function HomePage() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-border bg-black/30 p-4">
+                      <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-4">
                         <SectionTitle>API endpoints</SectionTitle>
                         {result.implementationPlan.apiEndpoints.length ? (
                           <ul className="mt-2 grid gap-2 text-sm">
                             {result.implementationPlan.apiEndpoints.map((e) => (
                               <li
                                 key={`${e.method}-${e.path}`}
-                                className="rounded-lg border border-border bg-black/20 px-3 py-2 cursor-pointer hover:bg-white/5"
+                                className="rounded-lg border border-white/10 bg-gradient-to-r from-white/5 via-white/3 to-white/5 px-3 py-2 cursor-pointer hover:border-accent/30 hover:from-accent/8 hover:to-accent3/8"
                                 onClick={() => setSelectedEndpoint(e)}
                                 role="button"
                                 tabIndex={0}
@@ -684,7 +684,7 @@ export default function HomePage() {
                         )}
                       </div>
 
-                      <div className="rounded-xl border border-border bg-black/30 p-4">
+                      <div className="rounded-xl border border-white/10 bg-gradient-to-b from-white/6 to-black/35 p-4">
                         <SectionTitle>Folder structure</SectionTitle>
                         <div className="mt-2">
                           <TreeView node={tree} />
